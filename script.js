@@ -1,5 +1,5 @@
 // --- API ENDPOINT ---
-const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwYX2CKpZ9BHaWXMtpfw6fTVINr4L1oTG7x4m9Uk9YqEG2Zy0HyhVfgcNPS5-r3CT5keg/exec';
+const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxsP8GJXrywhLSnteZsPYsNB-hulRLku4xPCPkQe5TzGfFPrFZhV-dzOCfQpQRPR6ni/exec';
 
 // State Variables
 let sunTimes = { sunrise: '--:--', sunset: '--:--' };
