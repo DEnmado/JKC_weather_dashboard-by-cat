@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Weather Dashboard - Jagannath Kishore College</title>
+    <!-- Tailwind CSS (via CDN for vanilla HTML) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Base styles and animations */
+        body { font-family: 'Inter', system-ui, sans-serif; transition: background-color 1s ease; }
+        .glass-panel { background: rgba(0, 0, 0, 0.2); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .glass-panel-light { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        
+        @keyframes cloud-drift {
+            0% { transform: translateX(-200px); }
+            100% { transform: translateX(100vw); }
+        }
+        .animate-cloud { animation: cloud-drift linear infinite; position: absolute; color: white; filter: drop-shadow(0 10px 8px rgb(0 0 0 / 0.04)); }
+        
+        .stars-container { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+        .star { position: absolute; background: white; border-radius: 50%; }
+        
+        /* Day/Night Theme Classes */
+        body.theme-day { background: linear-gradient(to bottom right, #2563eb, #0ea5e9, #38bdf8); }
+        body.theme-night { background: linear-gradient(to bottom right, #0f172a, #172554, #1e1b4b); }
+    </style>
+</head>
+<body class="theme-day min-h-screen p-4 md:p-8 text-white relative">
+    
+    <!-- Background Layers -->
+    <div id="stars-layer" class="stars-container hidden"></div>
+    <div id="clouds-layer" class="absolute inset-0 overflow-hidden pointer-events-none z-0 hidden">
+        <!-- Clouds will be injected here via JS -->
+    </div>
+
+    <div class="relative z-10 max-w-6xl mx-auto space-y-6">
+        
+        <!-- Dashboard Title Section -->
+        <header class="glass-panel-light p-4 md:p-6 rounded-[2rem] shadow-xl text-center flex flex-col items-center">
+            <h1 class="text-xl sm:text-2xl md:text-4xl font-bold mb-1 tracking-tight drop-shadow-sm whitespace-nowrap">Live Weather Dashboard</h1>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-3 text-sm md:text-lg text-white/90 font-medium">
+                <span id="current-date">--</span>
+                <span class="hidden sm:inline text-white/60">•</span>
+                <span id="current-time">--:--:--</span>
+            </div>
+            <p class="text-white/80 mt-1 flex items-center justify-center gap-1 text-sm md:text-base font-medium">
+                <i data-lucide="navigation" class="w-4 h-4"></i> <span id="location-text">Purulia, West Bengal</span>
+            </p>
+        </header>
+
+        <!-- Main Grid Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Left Column -->
+            <div class="lg:col-span-2 space-y-6">
+                
+                <!-- Current Weather Card -->
+                <div class="glass-panel-light rounded-[2rem] p-8 shadow-xl">
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                        <div>
+                            <div class="text-8xl font-light tracking-tighter mb-2 drop-shadow-sm"><span id="main-temp">--</span>°C</div>
+                            <div class="text-2xl font-semibold mb-1 drop-shadow-sm" id="main-condition">Connecting...</div>
+                            <div class="text-lg text-white/80 font-medium flex gap-4">
+                                <span>H: <span id="high-temp">--</span>°C</span>
+                                <span>L: <span id="low-temp">--</span>°C</span>
+                            </div>
+                        </div>
+                        <div class="bg-white/15 rounded-[2rem] p-6 shadow-inner border border-white/20 backdrop-blur-md" id="main-icon-container">
+                            <i data-lucide="cloud" class="w-24 h-24 text-white/90"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metrics Grid -->
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <!-- Humidity -->
+                    <div class="glass-panel rounded-2xl p-5 shadow-lg hover:bg-black/30 transition-all">
+                        <div class="flex items-center gap-2 mb-2 text-white/80">
+                            <i data-lucide="droplets" class="w-[18px] h-[18px]"></i>
+                            <span class="text-xs font-bold uppercase tracking-wider">Humidity</span>
+                        </div>
+                        <div class="text-3xl font-bold drop-shadow-sm"><span id="humidity">--</span>%</div>
+                    </div>
+
+                    <!-- Wind -->
+                    <div class="glass-panel rounded-2xl p-5 shadow-lg hover:bg-black/30 transition-all">
+                        <div class="flex items-center gap-2 mb-2 text-white/80">
+                            <i data-lucide="wind" class="w-[18px] h-[18px]"></i>
+                            <span class="text-xs font-bold uppercase tracking-wider">Wind</span>
+                        </div>
+                        <div class="text-2xl font-bold drop-shadow-sm"><span id="wind-speed">--</span> <span class="text-sm font-medium text-white/70">km/h</span></div>
+                        <div class="flex items-center gap-1 mt-1 text-sm text-white/80 font-medium">
+                            <i data-lucide="navigation" class="w-[14px] h-[14px]" id="wind-icon"></i>
+                            <span id="wind-dir">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Pressure -->
+                    <div class="glass-panel rounded-2xl p-5 shadow-lg hover:bg-black/30 transition-all">
+                        <div class="flex items-center gap-2 mb-2 text-white/80">
+                            <i data-lucide="gauge" class="w-[18px] h-[18px]"></i>
+                            <span class="text-xs font-bold uppercase tracking-wider">Pressure</span>
+                        </div>
+                        <div class="text-2xl font-bold drop-shadow-sm"><span id="pressure">--</span></div>
+                        <div class="text-sm font-medium text-white/70 mt-0.5">hPa</div>
+                    </div>
+
+                    <!-- Rainfall -->
+                    <div class="glass-panel rounded-2xl p-5 shadow-lg hover:bg-black/30 transition-all">
+                        <div class="flex items-center gap-2 mb-2 text-white/80">
+                            <i data-lucide="cloud-drizzle" class="w-[18px] h-[18px]"></i>
+                            <span class="text-xs font-bold uppercase tracking-wider">Rainfall</span>
+                        </div>
+                        <div class="text-2xl font-bold drop-shadow-sm"><span id="rainfall">--</span></div>
+                        <div class="text-sm font-medium text-white/70 mt-0.5">mm (last 24h)</div>
+                    </div>
+
+                    <!-- CO Level -->
+                    <div class="glass-panel rounded-2xl p-5 shadow-lg hover:bg-black/30 transition-all">
+                        <div class="flex items-center gap-2 mb-2 text-white/80">
+                            <i data-lucide="alert-triangle" class="w-[18px] h-[18px]"></i>
+                            <span class="text-xs font-bold uppercase tracking-wider">CO Level</span>
+                        </div>
+                        <div class="text-2xl font-bold drop-shadow-sm"><span id="co-level">--</span></div>
+                        <div class="text-sm font-medium text-white/70 mt-0.5">PPM</div>
+                    </div>
+
+                    <!-- NO2 Level -->
+                    <div class="glass-panel rounded-2xl p-5 shadow-lg hover:bg-black/30 transition-all">
+                        <div class="flex items-center gap-2 mb-2 text-white/80">
+                            <i data-lucide="leaf" class="w-[18px] h-[18px]"></i>
+                            <span class="text-xs font-bold uppercase tracking-wider">NO₂ Level</span>
+                        </div>
+                        <div class="text-2xl font-bold drop-shadow-sm"><span id="no2-level">--</span></div>
+                        <div class="text-sm font-medium text-white/70 mt-0.5">µg/m³</div>
+                    </div>
+
+                    <!-- Status Indicator -->
+                    <div class="glass-panel rounded-2xl p-5 shadow-lg hover:bg-black/30 transition-all md:col-span-3 lg:col-span-3">
+                        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+                            <div class="flex items-center gap-2 text-white/80">
+                                <i data-lucide="activity" class="w-[18px] h-[18px]"></i>
+                                <span class="text-xs font-bold uppercase tracking-wider">Backend Status</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div id="status-dot" class="w-4 h-4 rounded-full bg-yellow-400 shadow-[0_0_15px_#facc15] animate-pulse"></div>
+                                <div id="status-text" class="text-lg font-bold drop-shadow-sm">Connecting...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="space-y-6">
+                <!-- Feels Like & UV -->
+                <div class="grid grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
+                    <div class="glass-panel rounded-2xl p-5 shadow-lg hover:bg-black/30 transition-all">
+                        <div class="text-white/80 text-xs font-bold uppercase tracking-wider mb-2">Feels Like</div>
+                        <div class="text-3xl font-bold drop-shadow-sm mb-1"><span id="feels-like">--</span>°C</div>
+                        <div class="text-xs font-medium text-white/70">Similar to actual temp</div>
+                    </div>
+
+                    <div class="glass-panel rounded-2xl p-5 shadow-lg hover:bg-black/30 transition-all">
+                        <div class="text-white/80 text-xs font-bold uppercase tracking-wider mb-2">UV Index</div>
+                        <div class="text-3xl font-bold drop-shadow-sm mb-1"><span id="uv-index">--</span></div>
+                        <div class="text-xs font-medium text-white/70">Moderate protection needed</div>
+                    </div>
+                </div>
+
+                <!-- Sun/Moon Arc Card -->
+                <div class="glass-panel-light rounded-[2rem] p-6 shadow-xl">
+                    <div class="flex items-center gap-2 text-white/90 font-bold uppercase tracking-wider text-sm mb-2">
+                        <i data-lucide="sun" id="arc-title-icon" class="w-[18px] h-[18px]"></i>
+                        <span id="arc-title-text">Solar Arc</span>
+                    </div>
+                    
+                    <div class="mb-4 relative w-full flex justify-center overflow-visible mt-2" id="arc-container">
+                        <!-- SVG Arc gets injected here -->
+                    </div>
+
+                    <div class="space-y-3 mt-2 px-2 bg-black/20 rounded-xl p-3 border border-white/10">
+                        <div class="flex items-center justify-between border-b border-white/10 pb-2">
+                            <div class="flex items-center gap-2 text-white/80 text-sm font-medium">
+                                <i data-lucide="sunrise" id="rise-icon" class="w-4 h-4 text-yellow-300"></i>
+                                <span id="rise-label">Sunrise</span>
+                            </div>
+                            <div class="font-bold drop-shadow-sm" id="rise-time">--:--</div>
+                        </div>
+                        <div class="flex items-center justify-between border-b border-white/10 pb-2">
+                            <div class="flex items-center gap-2 text-white/80 text-sm font-medium">
+                                <i data-lucide="sunset" id="set-icon" class="w-4 h-4 text-orange-300"></i>
+                                <span id="set-label">Sunset</span>
+                            </div>
+                            <div class="font-bold drop-shadow-sm" id="set-time">--:--</div>
+                        </div>
+                        <div class="flex items-center justify-between pt-1">
+                            <div class="flex items-center gap-2 text-white/80 text-sm font-medium">
+                                <i data-lucide="sun" id="illum-icon" class="w-4 h-4"></i>
+                                <span>Illumination</span>
+                            </div>
+                            <div class="font-bold drop-shadow-sm"><span id="illumination">--</span>%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Air Quality Section -->
+        <div class="glass-panel-light rounded-[2rem] p-6 md:p-8 shadow-xl">
+            <div class="flex items-center gap-2 mb-6">
+                <i data-lucide="leaf" class="w-6 h-6 text-white/90 drop-shadow-sm"></i>
+                <h2 class="text-2xl font-bold tracking-tight drop-shadow-sm">Air Quality Overview (Indian Standard)</h2>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div class="glass-panel rounded-2xl p-5 shadow-inner">
+                    <div class="text-white/80 text-xs font-bold uppercase tracking-wider mb-2">Air Quality Index</div>
+                    <div class="text-4xl font-bold mb-1 drop-shadow-sm" id="aqi-value">--</div>
+                    <div class="text-sm font-bold uppercase tracking-wider" id="aqi-status">--</div>
+                </div>
+                <div class="glass-panel rounded-2xl p-5 shadow-inner">
+                    <div class="text-white/80 text-xs font-bold uppercase tracking-wider mb-2">PM 2.5 Levels</div>
+                    <div class="text-4xl font-bold mb-1 drop-shadow-sm"><span id="pm25">--</span></div>
+                    <div class="text-sm font-medium text-white/70">µg/m³</div>
+                </div>
+                <div class="glass-panel rounded-2xl p-5 shadow-inner">
+                    <div class="text-white/80 text-xs font-bold uppercase tracking-wider mb-2">PM 10 Levels</div>
+                    <div class="text-4xl font-bold mb-1 drop-shadow-sm"><span id="pm10">--</span></div>
+                    <div class="text-sm font-medium text-white/70">µg/m³</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Institutional Footer -->
+        <footer class="glass-panel p-4 md:p-6 rounded-[2rem] shadow-lg">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                
+                <!-- Desktop Left Logo -->
+                <div class="hidden md:block flex-shrink-0">
+                    <img src='J._K._College_logo.png' alt='JKC Logo' class="h-12 md:h-14 w-12 md:w-14 object-contain rounded-full drop-shadow-md shadow-lg bg-white p-1 hover:scale-105 transition-transform" onerror="this.src='https://upload.wikimedia.org/wikipedia/en/b/be/J._K._College_logo.png'"/>
+                </div>
+
+                <!-- Institutional Info - Center -->
+                <div class="flex flex-col text-white items-center text-center space-y-0.5 flex-1">
+                    <span class="text-sm md:text-xl font-bold tracking-tight drop-shadow-sm text-white/90">Jagannath Kishore College, Purulia</span>
+                    <span class="text-[10px] md:text-sm font-semibold text-white/70 drop-shadow-sm">Collaboration with District Science Centre, Purulia</span>
+                    <span class="text-[8px] md:text-xs text-white/50 font-medium max-w-2xl">A unit of National Council of Science Museums, Ministry of Culture, Government of India</span>
+                </div>
+
+                <!-- Desktop Right Logo -->
+                <div class="hidden md:block flex-shrink-0">
+                    <img src='https://ncsm.gov.in/wp-content/uploads/2013/12/NCSM-Logo.png' alt='NCSM Logo' class="h-10 md:h-12 object-contain drop-shadow-md hover:scale-105 transition-transform" />
+                </div>
+
+                <!-- Mobile Only: Logos side-by-side -->
+                <div class="flex md:hidden flex-row w-full justify-center gap-6 items-center mt-2">
+                    <img src='J._K._College_logo.png' alt='JKC Logo' class="h-10 w-10 object-contain rounded-full drop-shadow-md shadow-lg bg-white p-0.5" onerror="this.src='https://upload.wikimedia.org/wikipedia/en/b/be/J._K._College_logo.png'"/>
+                    <img src='https://ncsm.gov.in/wp-content/uploads/2013/12/NCSM-Logo.png' alt='NCSM Logo' class="h-8 object-contain drop-shadow-md" />
+                </div>
+
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Main Logic Script -->
+    <script src="script.js"></script>
+</body>
+</html>
