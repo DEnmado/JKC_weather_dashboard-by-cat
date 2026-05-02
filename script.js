@@ -1,5 +1,5 @@
 // --- API ENDPOINT ---
-const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxsP8GJXrywhLSnteZsPYsNB-hulRLku4xPCPkQe5TzGfFPrFZhV-dzOCfQpQRPR6ni/exec';
+const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwUqRDMdwjNoUGgqJpNU49mczCS86zpYLF8Ij7Dq1U3bajcnMoR4XtZAEPonhzL5Nl7/exec';
 
 // State Variables
 let sunTimes = { sunrise: '--:--', sunset: '--:--' };
@@ -288,57 +288,70 @@ const fetchWeatherData = async () => {
         const response = await fetch(APP_SCRIPT_URL);
         const result = await response.json();
         
-        if (result.status === 'success' && result.data.length > 0) {
-            const currentData = result.data[0];
+        // Updated to use the college script's "latestReading" structure
+        if (result.status === 'success' && result.latestReading) {
+            const currentData = result.latestReading;
+            const stats = result.statistics || {};
             
-            // Wind Logic
-            const windStr = currentData[11] || 'N';
-            const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-            let windDegrees = 0;
-            if (isNaN(windStr)) {
-                const idx = directions.indexOf(String(windStr).toUpperCase());
-                windDegrees = idx >= 0 ? idx * 22.5 : 0;
-            } else {
-                windDegrees = parseFloat(windStr);
-            }
-            const compassDir = directions[Math.round(windDegrees / 22.5) % 16];
+            // --- NEW ARRAY MAPPING BASED ON COLLEGE SCRIPT ---
+            // [0] Timestamp        [7] PM10.0
+            // [1] Temperature      [8] Wind Speed
+            // [2] Humidity         [9] Wind Direction (String)
+            // [3] Pressure         [10] Wind Direction (Degrees)
+            // [4] Gas Resistance   [11] CO
+            // [5] PM1.0            [12] NO2
+            // [6] PM2.5            [13] Altitude
             
+            const tempVal = parseFloat(currentData[1]) || 0;
+            const humidityVal = parseFloat(currentData[2]) || 0;
+            const pressureVal = parseFloat(currentData[3]) || 0;
             const pm25Val = parseFloat(currentData[6]) || 0;
             const pm10Val = parseFloat(currentData[7]) || 0;
-            const rainfallVal = parseFloat(currentData[12]) || 0;
-            const humidityVal = parseFloat(currentData[1]) || 0;
+            const windSpeedVal = parseFloat(currentData[8]) || 0;
+            const windDirStr = currentData[9] || 'N';
+            const windDegVal = parseFloat(currentData[10]) || 0;
+            const coVal = parseFloat(currentData[11]) || 0;
+            const no2Val = parseFloat(currentData[12]) || 0;
 
+            // UV and Rainfall aren't in your college sensors, so we default them
+            const hour = new Date().getHours();
+            const uvIndexMock = isNight ? 0 : Math.min(10, Math.max(1, Math.round(3 + 5 * Math.sin(hour * Math.PI / 12))));
+
+            // Dynamic Conditions
             let conditionStr = "Sunny";
-            if (rainfallVal > 0) conditionStr = "Raining";
-            else if (humidityVal > 80) conditionStr = "Cloudy";
+            if (humidityVal > 80) conditionStr = "Cloudy";
             else if (humidityVal > 60) conditionStr = "Partly Cloudy";
             else if (isNight) conditionStr = "Clear Night";
 
+            // Pull High/Low from the college script's 24h statistics!
+            const highTemp = stats.temperature ? stats.temperature.max.toFixed(1) : tempVal.toFixed(1);
+            const lowTemp = stats.temperature ? stats.temperature.min.toFixed(1) : tempVal.toFixed(1);
+
             updateWeatherUI({
-                temp: parseFloat(currentData[0]).toFixed(1) || 0,
+                temp: tempVal.toFixed(1),
                 humidity: humidityVal.toFixed(0),
-                high: parseFloat(currentData[2]).toFixed(1) || 0,
-                low: parseFloat(currentData[3]).toFixed(1) || 0,
-                pressure: parseFloat(currentData[4]).toFixed(0) || 0,
-                uvIndex: parseFloat(currentData[5]).toFixed(0) || 0,
+                high: highTemp,
+                low: lowTemp,
+                pressure: pressureVal.toFixed(0),
+                uvIndex: uvIndexMock, 
                 pm25: pm25Val.toFixed(1),
                 pm10: pm10Val.toFixed(1),
-                co: parseFloat(currentData[8]).toFixed(1) || 0,
-                no2: parseFloat(currentData[9]).toFixed(1) || 0,
-                windSpeed: parseFloat(currentData[10]).toFixed(1) || 0,
-                windDirection: compassDir,
-                windDegree: Math.round(windDegrees),
-                rainfall: rainfallVal.toFixed(1),
+                co: coVal.toFixed(1),
+                no2: no2Val.toFixed(1),
+                windSpeed: windSpeedVal.toFixed(1),
+                windDirection: windDirStr,
+                windDegree: Math.round(windDegVal),
+                rainfall: "0.0", // No rain sensor provided by college
                 aqi: calculateAQI(pm25Val, pm10Val),
-                feelsLike: parseFloat(currentData[0]).toFixed(1),
+                feelsLike: tempVal.toFixed(1), 
                 condition: conditionStr
             }, true);
         } else {
-            throw new Error("Invalid API Data");
+            throw new Error("Invalid API Data from College Script");
         }
     } catch (e) {
-        console.warn("API fetch failed, using fallback mock data.");
-        // Mock data logic (from React version)
+        console.warn("API fetch failed, using fallback mock data.", e);
+        // Fallback Mock Data
         const hour = new Date().getHours();
         updateWeatherUI({
             temp: (25 + 10 * Math.sin(hour * Math.PI / 12)).toFixed(1),
@@ -355,7 +368,7 @@ const fetchWeatherData = async () => {
             windSpeed: (2 + (Math.random() * 5)).toFixed(1),
             windDirection: 'NW',
             windDegree: 315,
-            rainfall: hour > 6 && hour < 18 ? (Math.random() * 5).toFixed(1) : "0.0",
+            rainfall: "0.0",
             feelsLike: (24 + 10 * Math.sin(hour * Math.PI / 12)).toFixed(1),
             condition: isNight ? 'Clear Night' : 'Partly Cloudy'
         }, false);
